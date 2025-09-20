@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <style>
+        :root {
+            --primary-color: #EA580C;
+            --font-serif: 'Cormorant Garamond', serif;
+            --font-script: 'Tangerine', cursive;
+            --font-sans: 'Inter', sans-serif;
+        }
+        body { font-family: var(--font-sans); background-color: #111827; }
+        .font-serif { font-family: var(--font-serif); }
+        .font-script { font-family: var(--font-script); }
+        .bg-primary { background-color: var(--primary-color) !important; }
+        .hover\:bg-primary-dark:hover { filter: brightness(0.9); }
+        .ring-primary { ring-color: var(--primary-color); }
+        .border-primary { border-color: var(--primary-color); }
+        .text-primary { color: var(--primary-color); }
+
+        /* Slideshow */
+        #splash-screen .slide { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; opacity: 0; transition: opacity 1.5s ease-in-out; z-index: 1; }
+        #splash-screen .slide.active { opacity: 1; z-index: 2; }
+        #splash-content { position: relative; z-index: 3; }
+
+        /* General UI */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1F2937; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4B5563; border-radius: 3px; }
+        .chat-bubble-ai { background-color: #374151; color: #F3F4F6; border-radius: 20px 20px 20px 5px; }
+        .chat-bubble-user { background-color: var(--primary-color); color: white; border-radius: 20px 20px 5px 20px; }
+        .mic-button.listening { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary-color) 70%, transparent); } 70% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--primary-color) 0%, transparent); } 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary-color) 0%, transparent); } }
+        .modal-backdrop { transition: opacity 0.3s ease-in-out; }
+        .modal-content { transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out; }
+        .dot-flashing { position: relative; width: 10px; height: 10px; border-radius: 5px; background-color: #9CA3AF; color: #9CA3AF; animation: dotFlashing 1s infinite linear alternate; animation-delay: .5s; }
+        .dot-flashing::before, .dot-flashing::after { content: ''; display: inline-block; position: absolute; top: 0; }
+        .dot-flashing::before { left: -15px; width: 10px; height: 10px; border-radius: 5px; background-color: #9CA3AF; color: #9CA3AF; animation: dotFlashing 1s infinite alternate; animation-delay: 0s; }
+        .dot-flashing::after { left: 15px; width: 10px; height: 10px; border-radius: 5px; background-color: #9CA3AF; color: #9CA3AF; animation: dotFlashing 1s infinite alternate; animation-delay: 1s; }
+        @keyframes dotFlashing { 0% { background-color: #9CA3AF; } 50%, 100% { background-color: #4B5563; } }
+        
+        /* Admin & Sidebar */
+        .client-sidebar-btn { background-color: #374151; color: white; padding: 0.5rem; border-radius: 0.5rem; transition: background-color 0.2s; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0.25rem; font-size: 0.75rem; }
+        .client-sidebar-btn:hover { background-color: var(--primary-color); }
+        .admin-sidebar-tab { text-align: left; width: 100%; padding: 0.75rem; border-radius: 0.5rem; transition: background-color 0.2s; }
+        .admin-sidebar-tab:hover, .admin-sidebar-tab.active { background-color: var(--primary-color); }
+        .admin-form-input { width: 100%; background-color: #374151; padding: 0.5rem; border-radius: 0.25rem; margin-top: 0.25rem; border: 1px solid transparent; transition: border-color 0.2s; }
+        .admin-form-input:focus { outline: none; border-color: var(--primary-color); }
+        .admin-form-label { display: block; color: #9CA3AF; font-size: 0.875rem; }
+        
+        /* Game Modal */
+        .game-option-btn { background-color: #374151; border: 2px solid #4B5563; transition: all 0.2s; }
+        .game-option-btn:hover { border-color: var(--primary-color); }
+        .game-option-btn.selected { background-color: var(--primary-color); border-color: var(--primary-color); }
+        .game-option-btn.correct { background-color: #22C55E; border-color: #22C55E; }
+        .game-option-btn.incorrect { background-color: #EF4444; border-color: #EF4444; }
+    </style>
+</head>
+<body class="antialiased text-gray-300 overflow-hidden">
+
+    <div id="app-container" class="w-full h-screen flex flex-col items-center justify-center p-0 md:p-4 bg-gray-900">
+
+        <!-- Splash Screen -->
+        <div id="splash-screen" class="relative w-full h-full flex items-center justify-center text-center text-white overflow-hidden">
+            <div id="splash-slideshow-container"></div>
+            <div class="absolute inset-0 bg-black bg-opacity-60"></div>
+            <div id="splash-content" class="bg-black bg-opacity-50 p-10 rounded-2xl">
+                <h1 id="splash-restaurant-name" class="font-script text-8xl md:text-9xl font-bold"></h1>
+                <p id="splash-restaurant-tagline" class="font-serif text-2xl mt-2 mb-8"></p>
+                <button id="start-button" class="bg-primary hover:bg-primary-dark text-white font-bold py-3 px-8 rounded-full shadow-lg transition-transform hover:scale-105">
+                    Enter
+                </button>
+            </div>
+        </div>
+
+        <!-- Main App Layout -->
+        <div id="main-app" class="hidden w-full h-full md:max-w-7xl mx-auto md:rounded-2xl shadow-2xl flex overflow-hidden relative bg-gray-900 bg-opacity-80 backdrop-blur-sm">
+            <!-- Client Sidebar -->
+            <div class="w-20 md:w-24 bg-gray-900 p-2 flex flex-col items-center gap-4 pt-4">
+                <button class="client-sidebar-btn" data-action="open-menu" title="Full Menu"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg><span>Menu</span></button>
+                <button class="client-sidebar-btn" data-action="open-promos" title="Special Offers"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span>Offers</span></button>
+                <button class="client-sidebar-btn" data-action="open-game" title="Play a Game"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Play Game</span></button>
+                <button class="client-sidebar-btn" data-action="open-review" title="Leave Feedback"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.539 1.118l-3.975-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg><span>Review</span></button>
+                <button class="client-sidebar-btn mt-auto" data-action="reset-session" title="Start New Session"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M4 4l16 16"/></svg><span>Reset</span></button>
+            </div>
+
+            <!-- Main Chat Area -->
+            <div class="flex-1 flex flex-col bg-gray-800/50">
+                <header class="p-4 border-b border-gray-700 flex justify-between items-center">
+                    <h2 id="restaurant-name-display" class="font-serif text-2xl text-white"></h2>
+                    <button data-action="toggle-order-sidebar" class="relative p-2 rounded-full bg-gray-700 hover:bg-gray-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                        <span id="order-count-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center hidden">0</span>
+                    </button>
+                </header>
+                <div id="chat-container" class="flex-1 p-4 overflow-y-auto space-y-4 custom-scrollbar"></div>
+                 <div class="p-4 border-t border-gray-700">
+                    <div id="typing-indicator" class="hidden items-center pl-4 mb-2">
+                        <div class="dot-flashing"></div>
+                    </div>
+                    <form id="input-form" class="flex gap-2">
+                        <input type="text" id="text-input" class="flex-1 bg-gray-700 text-white rounded-full px-4 py-2 focus:outline-none focus:ring-2 ring-primary" placeholder="Ask something..." disabled>
+                        <button type="button" data-action="toggle-mic" class="mic-button bg-gray-600 hover:bg-gray-500 text-white font-bold p-2.5 rounded-full">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm5 10.586V16a1 1 0 11-2 0v-1.414A5 5 0 014 10V8a1 1 0 012 0v2a3 3 0 006 0V8a1 1 0 012 0v2a5 5 0 01-5 4.586z" clip-rule="evenodd" /></svg>
+                        </button>
+                        <button type="submit" class="bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 rounded-full">Send</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Order Sidebar -->
+            <div id="order-sidebar" class="absolute md:relative top-0 right-0 h-full w-80 md:w-1/3 min-w-[300px] bg-gray-800 bg-opacity-95 md:bg-opacity-70 backdrop-blur-md flex flex-col border-l border-gray-700 z-30 transform translate-x-full transition-transform">
+                <header class="p-4 border-b border-gray-700 flex justify-between items-center">
+                    <h2 class="font-serif text-2xl text-white">Your Order</h2>
+                    <button data-action="close-order-sidebar" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                </header>
+                <div id="order-items" class="flex-1 p-4 overflow-y-auto custom-scrollbar"><p id="empty-order-message" class="text-gray-400">Your selections will appear here.</p></div>
+                <div class="p-4 border-t border-gray-700 space-y-3">
+                    <div id="discount-section">
+                        <label for="discount-code" class="text-sm text-gray-400">Have a discount code?</label>
+                        <div class="flex gap-2 mt-1">
+                            <input type="text" id="discount-code-input" class="flex-1 bg-gray-700 rounded px-2 py-1 text-sm" placeholder="Enter code">
+                            <button data-action="apply-discount" class="bg-gray-600 hover:bg-gray-500 text-white px-3 rounded text-sm">Apply</button>
+                        </div>
+                        <p id="discount-message" class="text-sm mt-1 h-4"></p>
+                    </div>
+                    <div class="flex justify-between font-semibold text-white"><span>Subtotal:</span><span id="order-subtotal">₹0.00</span></div>
+                    <div id="discount-display" class="hidden justify-between text-sm text-green-400"><span>Discount:</span><span id="discount-amount">-₹0.00</span></div>
+                    <div class="flex justify-between font-bold text-lg text-white border-t border-gray-600 pt-2"><span>Total:</span><span id="order-total">₹0.00</span></div>
+                    <button data-action="checkout" id="checkout-button" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg mt-2 disabled:bg-gray-500 disabled:cursor-not-allowed" disabled>Confirm & Enjoy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals Container -->
+    <div id="modal-container"></div>
+    
+    <script type="module">
+        // --- CONFIG & STATE ---
+        const GEMINI_API_KEY = "AIzaSyC0ype4GbppYe4CEHrBzurlYABkJYk-s6Y";
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+        
+        const allElements = {};
+        let slideshowInterval, recognition;
+        let conversationHistory = [], currentOrder = {}, menu = {}, brandSettings = {}, promotions = [];
+        let appliedDiscount = null;
+        
+        // --- LOCAL DATA STORE ---
+        const localData = {
+            brand_settings: {
+                id: 1,
+                restaurant_name: "The Gilded Spoon",
+                restaurant_tagline: "An unforgettable culinary journey.",
+                font_family_serif: 'Cormorant Garamond',
+                font_family_script: 'Tangerine',
+                primary_color_hex: '#EA580C'
+            },
+            slideshow_images: [
+                { id: 1, image_url: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=1974&auto=format&fit=crop", is_active: true },
+                { id: 2, image_url: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=2070&auto=format&fit=crop", is_active: true },
+                { id: 3, image_url: "https://images.unsplash.com/photo-1552566626-52f8b828add9?q=80&w=2070&auto=format&fit=crop", is_active: true }
+            ],
+            menu_items: [
+                { id: 1, item_key: 'volcano_ramen', name: "Volcano Ramen", price: 850, category: "Main Course", story: "A fiery challenge for the brave, with a rich tonkotsu broth.", is_bestseller: true, is_available: true },
+                { id: 2, item_key: 'gilded_burger', name: "The Gilded Burger", price: 1100, category: "Main Course", story: "Wagyu beef patty, truffle aioli, and a 24k gold leaf brioche bun.", is_bestseller: true, is_available: true },
+                { id: 3, item_key: 'emperors_salad', name: "Emperor's Salad", price: 600, category: "Appetizers", story: "Crisp romaine with a house-made caesar dressing and parmesan crisps.", is_bestseller: false, is_available: true },
+                { id: 4, item_key: 'cloud_tiramisu', name: "Cloud Tiramisu", price: 450, category: "Desserts", story: "Ladyfingers soaked in espresso, layered with mascarpone cream.", is_bestseller: false, is_available: true }
+            ],
+            promotions: [
+                { id: 1, title: "Weekend Special", description: "Get 10% off on all main courses this weekend!", promo_code: "WEEKEND10", discount_percentage: 10, is_active: true },
+                { id: 2, title: "Lunch Combo", description: "Any appetizer and a main course for just ₹1500.", promo_code: null, discount_percentage: 0, is_active: true }
+            ],
+            orders: [
+                { id: 1, created_at: new Date().toISOString(), total: 1950, items: JSON.stringify([{name: "The Gilded Burger", qty: 1}, {name: "Volcano Ramen", qty: 1}]) },
+            ],
+            reviews: [
+                { id: 1, created_at: new Date().toISOString(), content: "Absolutely amazing experience! The food was divine."}
+            ]
+        };
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', initialize);
+
+        function initialize() {
+            cacheDOMElements();
+            addEventListeners();
+            
+            brandSettings = localData.brand_settings;
+            applyBrandSettings(brandSettings);
+            startSlideshow(localData.slideshow_images);
+        }
+        
+        function cacheDOMElements() {
+            const ids = [
+                'splash-screen', 'splash-slideshow-container', 'splash-content', 'splash-restaurant-name', 'splash-restaurant-tagline', 'start-button',
+                'main-app', 'restaurant-name-display', 'order-count-badge', 'chat-container',
+                'typing-indicator', 'input-form', 'text-input', 'order-sidebar', 'order-items', 'empty-order-message', 'order-total', 'order-subtotal', 'checkout-button',
+                'discount-section', 'discount-code-input', 'discount-message', 'discount-display', 'discount-amount',
+                'modal-container'
+            ];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) allElements[id] = el;
+            });
+        }
+
+        function startSlideshow(images) {
+            if (!images || images.length === 0) return;
+            const container = allElements['splash-slideshow-container'];
+            container.innerHTML = images.map((img, index) => `<div class="slide ${index === 0 ? 'active' : ''}" style="background-image: url('${img.image_url}')"></div>`).join('');
+            let currentSlide = 0;
+            if (images.length > 1) {
+                slideshowInterval = setInterval(() => {
+                    const slides = container.querySelectorAll('.slide');
+                    slides[currentSlide].classList.remove('active');
+                    currentSlide = (currentSlide + 1) % slides.length;
+                    slides[currentSlide].classList.add('active');
+                }, 5000);
+            }
+        }
+        
+        function beginExperience() {
+            allElements['splash-screen'].classList.add('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                allElements['splash-screen'].classList.add('hidden');
+                startMainApp();
+            }, 1000);
+        }
+
+        function startMainApp() {
+            allElements['main-app'].classList.remove('hidden');
+            allElements['main-app'].classList.add('flex');
+            
+            initSpeechRecognition();
+            
+            rebuildMenuObject();
+            promotions = localData.promotions;
+
+            allElements['text-input'].disabled = false;
+            allElements['text-input'].focus();
+            
+            if (conversationHistory.length === 0) {
+                 callGemini("A new user has arrived. Greet them warmly and ask how you, the restaurant's AI concierge, can help them get started.", true);
+            }
+        }
+
+        function applyBrandSettings(settings) {
+            if (!settings) return;
+            allElements['splash-restaurant-name'].textContent = settings.restaurant_name;
+            allElements['splash-restaurant-tagline'].textContent = settings.restaurant_tagline;
+            allElements['restaurant-name-display'].textContent = settings.restaurant_name;
+            document.title = `Welcome to ${settings.restaurant_name}`;
+            loadDynamicFont(settings.font_family_serif, 'serif');
+            loadDynamicFont(settings.font_family_script, 'script');
+            document.documentElement.style.setProperty('--primary-color', settings.primary_color_hex);
+        }
+        
+        function loadDynamicFont(fontFamily, type) {
+            if (!fontFamily) return;
+            const fontName = fontFamily.replace(/\s/g, '+');
+            const link = document.createElement('link');
+            link.href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@400;700&display=swap`;
+            link.rel = 'stylesheet';
+            document.head.appendChild(link);
+            document.documentElement.style.setProperty(`--font-${type}`, `'${fontFamily}', ${type}`);
+        }
+        
+        function rebuildMenuObject() {
+            menu = localData.menu_items.reduce((acc, item) => { acc[item.item_key] = item; return acc; }, {});
+        }
+        
+        // --- Chat & AI ---
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) return;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+            recognition.onstart = () => document.querySelector('[data-action="toggle-mic"]').classList.add('listening');
+            recognition.onend = () => document.querySelector('[data-action="toggle-mic"]').classList.remove('listening');
+            recognition.onresult = (e) => {
+                allElements['text-input'].value = e.results[0][0].transcript;
+                allElements['input-form'].dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            };
+        }
+        
+        async function getSystemPrompt() {
+            const menuString = JSON.stringify(Object.values(menu).map(item => ({ name: item.name, price: item.price, category: item.category, description: item.story })), null, 2);
+            return `You are a helpful AI Concierge for ${brandSettings.restaurant_name}. Your personality is warm, welcoming, and passionate. Your goal is to help users have a delightful experience by building their order. RULES: Be conversational. Keep responses short. Your knowledge is strictly limited to the menu provided. Use the defined functions to interact with the app. You must NEVER use "AI" or "model" to describe yourself. This is the menu: ${menuString}`;
+        }
+
+        async function callGemini(userPrompt, isSystemMessage = false) {
+            setTyping(true);
+            allElements['text-input'].disabled = true;
+            if (userPrompt && !isSystemMessage) conversationHistory.push({ role: 'user', parts: [{ text: userPrompt }] });
+            
+            const systemInstruction = await getSystemPrompt();
+            const contents = isSystemMessage ? [{ role: 'user', parts: [{ text: userPrompt }] }] : conversationHistory;
+
+            const payload = {
+                contents: contents,
+                systemInstruction: { parts: [{ text: systemInstruction }] },
+                tools: [{ "functionDeclarations": [ 
+                    { "name": "addToOrder", "description": "Adds an item to the order.", "parameters": { "type": "OBJECT", "properties": { "itemKey": { "type": "STRING" }, "quantity": {"type": "NUMBER"} }, "required": ["itemKey", "quantity"] } }, 
+                    { "name": "showMenu", "description": "Displays the full menu.", "parameters": {} },
+                    { "name": "showPromotions", "description": "Displays current special offers.", "parameters": {} } 
+                ]}],
+            };
+            try {
+                const response = await fetch(GEMINI_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+                const result = await response.json();
+                const responsePart = result.candidates?.[0]?.content?.parts[0];
+                if (!responsePart) throw new Error("No response from AI.");
+                
+                if (responsePart.functionCall) {
+                    conversationHistory.push({role: 'model', parts: [responsePart]});
+                    await handleFunctionCall(responsePart.functionCall);
+                } else {
+                    conversationHistory.push({ role: 'model', parts: [{ text: responsePart.text }] });
+                    addMessage('ai', responsePart.text);
+                }
+            } catch (error) {
+                console.error("Gemini API call failed:", error);
+                addMessage('ai', "I'm having trouble connecting. This could be due to an invalid API key or a network issue. Please check the console for details.");
+            } finally {
+                setTyping(false);
+                allElements['text-input'].disabled = false;
+                allElements['text-input'].focus();
+            }
+        }
+        
+       async function handleFunctionCall(functionCall) {
+            const { name, args } = functionCall;
+            let functionResponseContent = "";
+            switch (name) {
+                case "addToOrder":
+                    const itemKey = args.itemKey;
+                    const quantity = args.quantity || 1;
+                    if (menu[itemKey]) { addToOrder(itemKey, quantity); functionResponseContent = `Successfully added ${quantity} ${menu[itemKey].name}.`; } 
+                    else { functionResponseContent = `Could not find item ${itemKey}.`; }
+                    break;
+                case "showMenu": openModal('menu'); functionResponseContent = "The menu is now visible."; break;
+                case "showPromotions": openModal('promos'); functionResponseContent = "Promotions are now visible."; break;
+                default: functionResponseContent = `Unknown function ${name}`;
+            }
+            conversationHistory.push({ role: "tool", parts: [{ functionResponse: { name: name, response: { content: functionResponseContent } } }] });
+            await callGemini(null);
+        }
+
+        function addMessage(speaker, text) {
+            const bubble = document.createElement('div');
+            bubble.className = `max-w-xs md:max-w-md p-3 rounded-lg shadow-md mb-2 ${speaker === 'ai' ? 'chat-bubble-ai self-start' : 'chat-bubble-user self-end'}`;
+            bubble.textContent = text;
+            allElements['chat-container'].appendChild(bubble);
+            allElements['chat-container'].scrollTop = allElements['chat-container'].scrollHeight;
+            if (speaker === 'ai') speak(text);
+        }
+        
+        function setTyping(isTyping) { 
+            allElements['typing-indicator'].classList.toggle('hidden', !isTyping);
+            allElements['typing-indicator'].classList.toggle('flex', isTyping);
+        }
+        
+        function speak(text) {
+            if (!window.speechSynthesis) return;
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // --- Order Logic ---
+        function addToOrder(itemKey, qty = 1, fromButton = false) {
+            if (!menu[itemKey]) return;
+            if (currentOrder[itemKey]) { currentOrder[itemKey].qty += qty; } 
+            else { currentOrder[itemKey] = { ...menu[itemKey], qty: qty }; }
+            
+            if(fromButton && event.target) {
+                const button = event.target;
+                button.textContent = 'Added!';
+                button.classList.add('bg-green-600');
+                setTimeout(() => {
+                    button.textContent = 'Add to Order';
+                    button.classList.remove('bg-green-600');
+                }, 1000);
+            }
+            updateOrderUI();
+        }
+
+        function applyDiscount() {
+            const code = allElements['discount-code-input'].value.trim().toUpperCase();
+            const messageEl = allElements['discount-message'];
+            if (!code) { messageEl.textContent = "Please enter a code."; messageEl.className = 'text-yellow-500 text-sm mt-1 h-4'; return; }
+            const promo = promotions.find(p => p.promo_code === code);
+            if (!promo) {
+                messageEl.textContent = "Invalid or expired code."; messageEl.className = 'text-red-500 text-sm mt-1 h-4'; appliedDiscount = null;
+            } else {
+                messageEl.textContent = `Success! ${promo.title} applied.`; messageEl.className = 'text-green-500 text-sm mt-1 h-4';
+                appliedDiscount = { percentage: promo.discount_percentage };
+            }
+            updateOrderUI();
+        }
+
+        function getOrderTotals() {
+            const subtotal = Object.values(currentOrder).reduce((sum, item) => sum + (item.price * item.qty), 0);
+            let total = subtotal; let discountAmount = 0;
+            if (appliedDiscount && subtotal > 0) {
+                discountAmount = subtotal * (appliedDiscount.percentage / 100);
+                total = subtotal - discountAmount;
+            }
+            const itemsForDb = Object.keys(currentOrder).map(key => ({ item_key: key, name: currentOrder[key].name, qty: currentOrder[key].qty, price: currentOrder[key].price }));
+            return { subtotal, total, discountAmount, itemsForDb };
+        }
+        
+        function updateOrderUI() {
+            const itemCount = Object.values(currentOrder).reduce((sum, item) => sum + item.qty, 0);
+            allElements['order-count-badge'].classList.toggle('hidden', itemCount === 0);
+            allElements['order-count-badge'].textContent = itemCount;
+
+            if (Object.keys(currentOrder).length === 0) {
+                allElements['order-items'].innerHTML = `<p id="empty-order-message" class="text-gray-400">Your selections will appear here.</p>`;
+                allElements['checkout-button'].disabled = true;
+            } else {
+                allElements['order-items'].innerHTML = Object.values(currentOrder).map(item => 
+                    `<div class="flex justify-between items-center py-2"><p class="font-semibold text-white">${item.qty} x ${item.name}</p><p>₹${(item.price * item.qty).toFixed(2)}</p></div>`).join('');
+                allElements['checkout-button'].disabled = false;
+            }
+            
+            const { subtotal, total, discountAmount } = getOrderTotals();
+            allElements['order-subtotal'].textContent = `₹${subtotal.toFixed(2)}`;
+            allElements['order-total'].textContent = `₹${total.toFixed(2)}`;
+            allElements['discount-display'].classList.toggle('hidden', discountAmount <= 0);
+            allElements['discount-amount'].textContent = `-₹${discountAmount.toFixed(2)}`;
+        }
+
+        function checkout() {
+            const { total, itemsForDb } = getOrderTotals();
+            if (total <= 0 && itemsForDb.length === 0) return;
+            console.log("Order Placed (Local):", { items: itemsForDb, total });
+            addMessage('ai', 'Your order has been placed! It will be ready shortly. Feel free to play a game while you wait.');
+            currentOrder = {}; appliedDiscount = null; allElements['discount-code-input'].value = ''; allElements['discount-message'].textContent = ''; updateOrderUI();
+        }
+        
+        // --- Modals ---
+        function createModal(id, title, bodyContent = '', isLarge = false) {
+             const sizeClass = isLarge ? 'max-w-6xl h-[90vh]' : 'max-w-4xl h-[90vh]';
+            const modalHTML = `
+                <div id="${id}-modal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50 hidden">
+                    <div class="modal-content bg-gray-800 rounded-2xl shadow-xl w-full ${sizeClass} text-white opacity-0 transform scale-95 flex flex-col">
+                        <header class="p-4 flex justify-between items-center border-b border-gray-700">
+                            <h3 class="font-serif text-3xl">${title}</h3>
+                            <button data-action="close-modal" class="text-3xl">&times;</button>
+                        </header>
+                        <div id="${id}-modal-body" class="flex-1 p-6 overflow-y-auto custom-scrollbar">${bodyContent}</div>
+                    </div>
+                </div>`;
+            allElements['modal-container'].insertAdjacentHTML('beforeend', modalHTML);
+        }
+
+        function showModal(modalId) {
+            const modal = document.getElementById(`${modalId}-modal`);
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.querySelector('.modal-content').classList.remove('scale-95', 'opacity-0'), 10);
+        }
+
+        function hideAllModals() {
+            document.querySelectorAll('.modal-backdrop').forEach(modal => {
+                modal.querySelector('.modal-content').classList.add('scale-95', 'opacity-0');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            });
+        }
+        
+        async function openModal(type) {
+            let title, content;
+            switch(type) {
+                case 'menu':
+                    title = 'Our Culinary Offerings';
+                    const categories = [...new Set(Object.values(menu).map(item => item.category))].sort();
+                    content = categories.map(category => `
+                        <div class="mb-8">
+                            <h4 class="font-serif text-2xl border-b-2 border-primary mb-4">${category}</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                ${Object.values(menu).filter(item => item.category === category).map(item => `
+                                    <div class="bg-gray-700 p-4 rounded-lg flex flex-col">
+                                        <div class="flex-1"><div class="flex justify-between items-start"><h5 class="text-xl font-bold text-white">${item.name} ${item.is_bestseller ? '<span class="text-yellow-400 text-sm">★</span>' : ''}</h5><p class="text-lg font-semibold">₹${item.price}</p></div><p class="text-sm text-gray-400 mt-1">${item.story}</p></div>
+                                        <button class="mt-4 bg-primary text-white font-bold py-2 rounded-lg hover:bg-primary-dark self-start px-4" onclick="window.app.addToOrder('${item.item_key}', 1, true)">Add to Order</button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>`).join('');
+                    break;
+                case 'promos':
+                    title = 'Special Offers';
+                    content = promotions.length > 0 ? promotions.map(p => `<div class="bg-gray-700 p-4 rounded-lg"><h4 class="text-xl font-bold text-primary">${p.title}</h4><p class="text-gray-300 mt-1">${p.description}</p>${p.promo_code ? `<p class="mt-2 font-mono bg-gray-900 inline-block p-2 rounded">Code: ${p.promo_code}</p>` : ''}</div>`).join('<div class="my-4"></div>') : '<p>No offers available now.</p>';
+                    break;
+                case 'review':
+                    title = 'Leave a Review';
+                    content = `<div class="space-y-4"><textarea id="review-content" class="w-full bg-gray-700 p-2 rounded h-32" placeholder="Tell us about your experience..."></textarea><button data-action="submit-review" class="w-full bg-primary p-2 rounded">Submit Feedback</button></div>`;
+                    break;
+                case 'game':
+                    title = 'A Little Fun!';
+                    content = `<div id="game-content" class="text-center"><p>Generating a new game for you...</p><div class="dot-flashing mx-auto my-8"></div></div>`;
+                    generateGame();
+                    break;
+            }
+            if(!document.getElementById(`${type}-modal`)) createModal(type, title);
+            document.getElementById(`${type}-modal-body`).innerHTML = content;
+            showModal(type);
+        }
+
+        async function generateGame() {
+            const prompt = `Create a fun, short trivia game with 4 multiple-choice questions about world cuisine. Provide the questions, 4 options for each, and the correct answer index for each. Format the entire output as a single, valid JSON object with a key "trivia" which is an array of objects. Each object should have "question", "options" (an array of 4 strings), and "answer" (a 0-indexed number).`;
+            try {
+                const response = await fetch(GEMINI_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { responseMimeType: "application/json" }
+                    })
+                });
+                const result = await response.json();
+                const gameData = JSON.parse(result.candidates[0].content.parts[0].text);
+                renderGame(gameData.trivia);
+            } catch (error) {
+                console.error("Game generation failed:", error);
+                document.getElementById('game-content').innerHTML = '<p>Sorry, I couldn\'t create a game right now. Please try again!</p>';
+            }
+        }
+        
+        function renderGame(questions) {
+            let currentQuestionIndex = 0;
+            let score = 0;
+            const gameContent = document.getElementById('game-content');
+
+            function showQuestion() {
+                const q = questions[currentQuestionIndex];
+                gameContent.innerHTML = `
+                    <h4 class="text-2xl font-bold mb-6">${q.question}</h4>
+                    <div id="game-options" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${q.options.map((opt, index) => `<button class="game-option-btn p-4 rounded-lg text-lg" data-index="${index}">${opt}</button>`).join('')}
+                    </div>
+                    <p id="game-feedback" class="mt-6 h-6"></p>
+                `;
+            }
+
+            gameContent.addEventListener('click', (e) => {
+                if (e.target.classList.contains('game-option-btn')) {
+                    const selectedIndex = parseInt(e.target.dataset.index);
+                    const correctIndex = questions[currentQuestionIndex].answer;
+                    document.querySelectorAll('.game-option-btn').forEach(btn => btn.disabled = true);
+                    
+                    if (selectedIndex === correctIndex) {
+                        score++;
+                        e.target.classList.add('correct');
+                        document.getElementById('game-feedback').textContent = "Correct!";
+                    } else {
+                        e.target.classList.add('incorrect');
+                        document.querySelectorAll('.game-option-btn')[correctIndex].classList.add('correct');
+                         document.getElementById('game-feedback').textContent = "Nice try!";
+                    }
+
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        if (currentQuestionIndex < questions.length) {
+                            showQuestion();
+                        } else {
+                            gameContent.innerHTML = `<h4 class="text-3xl font-bold">Game Over!</h4><p class="text-xl mt-4">You scored ${score} out of ${questions.length}!</p><button data-action="generate-game" class="mt-6 bg-primary p-3 rounded-lg">Play Again</button>`;
+                        }
+                    }, 2000);
+                }
+            });
+            showQuestion();
+        }
+
+        // --- Admin ---
+        function renderAdminView(tabId) {
+            const viewContainer = document.getElementById(`admin-view-${tabId}`);
+            if (!viewContainer) return;
+
+            document.querySelectorAll('.admin-sidebar-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.admin-sidebar-tab[data-tab="${tabId}"]`).classList.add('active');
+
+            document.querySelectorAll('.admin-view').forEach(v => v.classList.add('hidden'));
+            viewContainer.classList.remove('hidden');
+            
+            let content = '';
+
+            switch(tabId) {
+                case 'branding':
+                    const brandData = localData.brand_settings;
+                    content = `
+                        <h3 class="font-serif text-3xl mb-6">Branding</h3>
+                        <div class="space-y-4 max-w-lg">
+                            <div><label class="admin-form-label">Restaurant Name</label><input id="admin-brand-name" class="admin-form-input" value="${brandData.restaurant_name}"></div>
+                            <div><label class="admin-form-label">Tagline</label><input id="admin-brand-tagline" class="admin-form-input" value="${brandData.restaurant_tagline}"></div>
+                            <div><label class="admin-form-label">Primary Color</label><input type="color" id="admin-brand-color" class="w-full h-10 bg-gray-700 p-1 rounded mt-1" value="${brandData.primary_color_hex}"></div>
+                            <button data-action="save-admin-branding" class="w-full bg-primary p-3 rounded-lg hover:bg-primary-dark">Save Branding</button>
+                            <p id="admin-status-branding" class="text-sm text-green-500 h-4"></p>
+                        </div>`;
+                    break;
+                case 'menu':
+                     content = `<h3 class="font-serif text-3xl mb-6">Menu Items</h3><div id="admin-menu-list" class="space-y-2">${renderAdminMenuItems()}</div><hr class="my-6 border-gray-700"><div id="admin-menu-form-container"></div>`;
+                    break;
+                case 'promotions':
+                    content = `<h3 class="font-serif text-3xl mb-6">Promotions</h3><div id="admin-promos-list" class="space-y-2">${renderAdminPromos()}</div><hr class="my-6 border-gray-700"><div id="admin-promo-form-container"></div>`;
+                    break;
+                case 'slideshow':
+                    content = `<h3 class="font-serif text-3xl mb-6">Slideshow Images</h3><div id="admin-slideshow-list" class="space-y-2">${renderAdminSlideshowImages()}</div><hr class="my-6 border-gray-700"><div id="admin-slideshow-form-container"></div>`;
+                    break;
+                 case 'orders':
+                    content = `<div class="flex justify-between items-center"><h3 class="font-serif text-3xl mb-6">Live Orders</h3><button data-action="download-orders" class="bg-blue-600 p-2 rounded">Download CSV</button></div><div class="space-y-2">${localData.orders.map(o => `<div class="bg-gray-900 p-3 rounded"><h4>Order #${o.id} - Total: ₹${o.total.toFixed(2)}</h4><p class="text-sm text-gray-400">${new Date(o.created_at).toLocaleString()}</p></div>`).join('')}</div>`;
+                    break;
+                case 'reviews':
+                    content = `<div class="flex justify-between items-center"><h3 class="font-serif text-3xl mb-6">Customer Reviews</h3><button data-action="download-reviews" class="bg-blue-600 p-2 rounded">Download CSV</button></div><div class="space-y-2">${localData.reviews.map(r => `<div class="bg-gray-900 p-3 rounded"><p>${r.content}</p><p class="text-sm text-gray-400 mt-2">${new Date(r.created_at).toLocaleString()}</p></div>`).join('')}</div>`;
+                    break;
+            }
+            viewContainer.innerHTML = content;
+            if (tabId === 'menu') showAdminMenuForm();
+            if (tabId === 'promotions') showAdminPromoForm();
+            if (tabId === 'slideshow') showAdminSlideshowForm();
+        }
+
+        function downloadCSV(data, filename) {
+            if (!data || data.length === 0) return;
+            const headers = Object.keys(data[0]);
+            const csvRows = [headers.join(','), ...data.map(row => headers.map(header => JSON.stringify(row[header])).join(','))];
+            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('hidden', '');
+            a.setAttribute('href', url);
+            a.setAttribute('download', filename);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+        
+        // --- Admin CRUD Functions ---
+
+        function saveBrandingChanges() {
+            const newSettings = {
+                ...localData.brand_settings,
+                restaurant_name: document.getElementById('admin-brand-name').value,
+                restaurant_tagline: document.getElementById('admin-brand-tagline').value,
+                primary_color_hex: document.getElementById('admin-brand-color').value,
+            };
+            localData.brand_settings = newSettings;
+            brandSettings = newSettings;
+            applyBrandSettings(newSettings);
+            const statusEl = document.getElementById('admin-status-branding');
+            statusEl.textContent = 'Branding updated successfully!';
+            setTimeout(() => statusEl.textContent = '', 3000);
+        }
+        
+        // Menu Admin
+        function renderAdminMenuItems() {
+            return localData.menu_items.map(item => `
+                <div class="bg-gray-900 p-3 rounded flex justify-between items-center">
+                    <div>
+                        <p class="font-semibold">${item.name} <span class="text-sm text-gray-400">(${item.category})</span></p>
+                        <p class="text-sm">₹${item.price}</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="text-blue-400 hover:text-blue-300" data-action="edit-menu-item" data-id="${item.id}">Edit</button>
+                        <button class="text-red-500 hover:text-red-400" data-action="delete-menu-item" data-id="${item.id}">Delete</button>
+                    </div>
+                </div>`).join('');
+        }
+
+        function showAdminMenuForm(itemId = null) {
+            const item = itemId ? localData.menu_items.find(i => i.id === itemId) : null;
+            const title = item ? 'Edit Menu Item' : 'Add New Menu Item';
+            const buttonText = item ? 'Save Changes' : 'Add Item';
+            const formContainer = document.getElementById('admin-menu-form-container');
+            
+            formContainer.innerHTML = `
+                <h4 class="font-serif text-2xl mb-4">${title}</h4>
+                <div class="space-y-4">
+                    <input type="hidden" id="admin-menu-id" value="${item?.id || ''}">
+                    <div><label class="admin-form-label">Item Name</label><input id="admin-menu-name" class="admin-form-input" value="${item?.name || ''}"></div>
+                    <div><label class="admin-form-label">Item Key (e.g., 'classic_burger')</label><input id="admin-menu-key" class="admin-form-input" value="${item?.item_key || ''}" ${item ? 'disabled' : ''}></div>
+                    <div><label class="admin-form-label">Price</label><input id="admin-menu-price" type="number" class="admin-form-input" value="${item?.price || ''}"></div>
+                    <div><label class="admin-form-label">Category</label><input id="admin-menu-category" class="admin-form-input" value="${item?.category || ''}"></div>
+                    <div><label class="admin-form-label">Story / Description</label><textarea id="admin-menu-story" class="admin-form-input h-24">${item?.story || ''}</textarea></div>
+                    <div class="flex gap-4 items-center">
+                        <label class="flex items-center gap-2"><input id="admin-menu-bestseller" type="checkbox" ${item?.is_bestseller ? 'checked' : ''}> Bestseller</label>
+                        <label class="flex items-center gap-2"><input id="admin-menu-available" type="checkbox" ${item?.is_available ?? true ? 'checked' : ''}> Available</label>
+                    </div>
+                    <div class="flex gap-4">
+                        <button data-action="save-menu-item" class="flex-1 bg-primary p-3 rounded-lg hover:bg-primary-dark">${buttonText}</button>
+                        ${item ? `<button data-action="cancel-edit-menu" class="flex-1 bg-gray-600 p-3 rounded-lg hover:bg-gray-500">Cancel</button>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function saveMenuItem() {
+            const id = parseInt(document.getElementById('admin-menu-id').value);
+            const newItemData = {
+                name: document.getElementById('admin-menu-name').value,
+                item_key: document.getElementById('admin-menu-key').value,
+                price: parseFloat(document.getElementById('admin-menu-price').value),
+                category: document.getElementById('admin-menu-category').value,
+                story: document.getElementById('admin-menu-story').value,
+                is_bestseller: document.getElementById('admin-menu-bestseller').checked,
+                is_available: document.getElementById('admin-menu-available').checked
+            };
+
+            if (id) { // Editing existing item
+                const index = localData.menu_items.findIndex(i => i.id === id);
+                localData.menu_items[index] = { ...localData.menu_items[index], ...newItemData };
+            } else { // Adding new item
+                newItemData.id = Math.max(...localData.menu_items.map(i => i.id)) + 1;
+                localData.menu_items.push(newItemData);
+            }
+            rebuildMenuObject();
+            document.getElementById('admin-menu-list').innerHTML = renderAdminMenuItems();
+            showAdminMenuForm(); // Clear the form
+        }
+        
+        // --- Other Admin CRUD (Promos, Slideshow) ---
+        function renderAdminPromos() { 
+            return localData.promotions.map(promo => `
+                <div class="bg-gray-900 p-3 rounded flex justify-between items-center">
+                    <div><p class="font-semibold">${promo.title}</p></div>
+                    <div class="flex gap-2">
+                        <button class="text-red-500 hover:text-red-400" data-action="delete-promo" data-id="${promo.id}">Delete</button>
+                    </div>
+                </div>`).join('');
+        }
+        function showAdminPromoForm() {
+             document.getElementById('admin-promo-form-container').innerHTML = `
+                <h4 class="font-serif text-2xl mb-4">Add New Promotion</h4>
+                <div class="space-y-4">
+                     <div><label class="admin-form-label">Title</label><input id="admin-promo-title" class="admin-form-input"></div>
+                     <div><label class="admin-form-label">Description</label><input id="admin-promo-desc" class="admin-form-input"></div>
+                     <button data-action="save-promo" class="w-full bg-primary p-3 rounded-lg hover:bg-primary-dark">Add Promotion</button>
+                </div>
+            `;
+        }
+        function savePromo() { 
+            const newPromo = {
+                id: Math.max(...localData.promotions.map(p => p.id)) + 1,
+                title: document.getElementById('admin-promo-title').value,
+                description: document.getElementById('admin-promo-desc').value,
+                is_active: true
+            };
+            localData.promotions.push(newPromo);
+            promotions = localData.promotions;
+            document.getElementById('admin-promos-list').innerHTML = renderAdminPromos();
+            showAdminPromoForm();
+        }
+
+        function renderAdminSlideshowImages() {
+             return localData.slideshow_images.map(img => `
+                <div class="bg-gray-900 p-3 rounded flex justify-between items-center">
+                    <p class="text-sm truncate">${img.image_url}</p>
+                    <button class="text-red-500 hover:text-red-400" data-action="delete-slide" data-id="${img.id}">Delete</button>
+                </div>`).join('');
+        }
+        function showAdminSlideshowForm() {
+            document.getElementById('admin-slideshow-form-container').innerHTML = `
+                <h4 class="font-serif text-2xl mb-4">Add New Image</h4>
+                <div><label class="admin-form-label">Image URL</label><input id="admin-slide-url" class="admin-form-input"></div>
+                <button data-action="save-slide" class="mt-4 w-full bg-primary p-3 rounded-lg hover:bg-primary-dark">Add Image</button>
+            `;
+        }
+        function saveSlideshowImage() {
+            const newSlide = {
+                id: Math.max(...localData.slideshow_images.map(s => s.id)) + 1,
+                image_url: document.getElementById('admin-slide-url').value,
+                is_active: true
+            };
+            localData.slideshow_images.push(newSlide);
+            document.getElementById('admin-slideshow-list').innerHTML = renderAdminSlideshowImages();
+            showAdminSlideshowForm();
+            startSlideshow(localData.slideshow_images); // Refresh slideshow
+        }
+
+
+        // --- Event Listeners ---
+        function addEventListeners() {
+            window.app = { addToOrder }; // Expose to global scope for inline onclick
+
+            allElements['start-button'].addEventListener('click', beginExperience);
+            
+            document.addEventListener('click', async e => {
+                const action = e.target.closest('[data-action]')?.dataset.action;
+                const id = e.target.closest('[data-id]')?.dataset.id;
+                if (!action) return;
+
+                switch(action) {
+                    case 'open-menu': openModal('menu'); break;
+                    case 'open-promos': openModal('promos'); break;
+                    case 'open-review': openModal('review'); break;
+                    case 'open-game': openModal('game'); break;
+                    case 'generate-game': generateGame(); break;
+                    case 'close-modal': hideAllModals(); break;
+                    case 'toggle-order-sidebar': allElements['order-sidebar'].classList.toggle('translate-x-full'); break;
+                    case 'close-order-sidebar': allElements['order-sidebar'].classList.add('translate-x-full'); break;
+                    case 'apply-discount': applyDiscount(); break;
+                    case 'checkout': checkout(); break;
+                    case 'toggle-mic': recognition?.start(); break;
+                    case 'reset-session': location.reload(); break;
+                    case 'submit-review':
+                        const content = document.getElementById('review-content').value;
+                        if(content) { console.log("Review Submitted (Local):", { content }); hideAllModals(); addMessage('ai', 'Thank you for your feedback!'); }
+                        break;
+                    
+                    // Admin actions
+                    case 'admin-login':
+                        if(document.getElementById('admin-password').value === '0000') { hideAllModals(); showModal('admin'); renderAdminView('branding');}
+                        else { alert('Incorrect Password'); }
+                        break;
+                    case 'admin-tab': renderAdminView(e.target.dataset.tab); break;
+                    case 'save-admin-branding': saveBrandingChanges(); break;
+                    
+                    case 'edit-menu-item': showAdminMenuForm(parseInt(id)); break;
+                    case 'delete-menu-item': 
+                        localData.menu_items = localData.menu_items.filter(i => i.id !== parseInt(id));
+                        rebuildMenuObject();
+                        document.getElementById('admin-menu-list').innerHTML = renderAdminMenuItems();
+                        break;
+                    case 'save-menu-item': saveMenuItem(); break;
+                    case 'cancel-edit-menu': showAdminMenuForm(); break;
+                    
+                    case 'delete-promo':
+                        localData.promotions = localData.promotions.filter(p => p.id !== parseInt(id));
+                        promotions = localData.promotions;
+                        document.getElementById('admin-promos-list').innerHTML = renderAdminPromos();
+                        break;
+                    case 'save-promo': savePromo(); break;
+
+                    case 'delete-slide':
+                        localData.slideshow_images = localData.slideshow_images.filter(s => s.id !== parseInt(id));
+                        document.getElementById('admin-slideshow-list').innerHTML = renderAdminSlideshowImages();
+                        startSlideshow(localData.slideshow_images);
+                        break;
+                    case 'save-slide': saveSlideshowImage(); break;
+
+                    case 'download-orders': downloadCSV(localData.orders, 'orders.csv'); break;
+                    case 'download-reviews': downloadCSV(localData.reviews, 'reviews.csv'); break;
+                }
+            });
+
+            allElements['input-form'].addEventListener('submit', (e) => {
+                e.preventDefault();
+                const userInput = allElements['text-input'].value.trim();
+                if (!userInput) return;
+
+                // NEW: Check for admin command
+                if (userInput === 'hardik0000') {
+                    showModal('admin-login');
+                    allElements['text-input'].value = '';
+                    return; // Stop further execution
+                }
+                
+                addMessage('user', userInput);
+                allElements['text-input'].value = '';
+                callGemini(userInput);
+            });
+        }
+        
+        // Initial modal creation
+        createModal('admin-login', 'Admin Login', `<div class="space-y-4"><input type="password" id="admin-password" class="w-full bg-gray-700 p-3 rounded" placeholder="Password"><button data-action="admin-login" class="w-full bg-primary p-3 rounded">Login</button></div>`);
+        createModal('admin', 'Admin Panel', `<div class="flex gap-4 h-full"><div class="w-1/4 bg-gray-900 rounded-lg p-4 flex flex-col gap-2"><h3 class="font-serif text-2xl mb-4">Admin Panel</h3><button class="admin-sidebar-tab" data-action="admin-tab" data-tab="branding">Branding</button><button class="admin-sidebar-tab" data-action="admin-tab" data-tab="menu">Menu</button><button class="admin-sidebar-tab" data-action="admin-tab" data-tab="promotions">Promotions</button><button class="admin-sidebar-tab" data-action="admin-tab" data-tab="slideshow">Slideshow</button><button class="admin-sidebar-tab" data-action="admin-tab" data-tab="orders">Orders</button><button class="admin-sidebar-tab" data-action="admin-tab" data-tab="reviews">Reviews</button></div><div class="w-3/4 bg-gray-900 rounded-lg p-6 overflow-y-auto custom-scrollbar"><div id="admin-view-branding" class="admin-view"></div><div id="admin-view-menu" class="admin-view hidden"></div><div id="admin-view-promotions" class="admin-view hidden"></div><div id="admin-view-slideshow" class="admin-view hidden"></div><div id="admin-view-orders" class="admin-view hidden"></div><div id="admin-view-reviews" class="admin-view hidden"></div></div></div>`, true);
+
+    </script>
+</body>
+</html>
+
